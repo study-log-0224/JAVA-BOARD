@@ -1,5 +1,11 @@
 package board;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -14,6 +20,7 @@ public class Main {
 	static int boardCount = 1; // 글 번호 자동 증가용
 
 	public static void main(String[] args) {
+		loadData();
 		while (true) {
 			if (loginUser == null) {
 				showGuestMenu();
@@ -53,6 +60,7 @@ public class Main {
 			join();
 			break;
 		case 0:
+			saveData();
 			System.out.println("프로그램을 종료합니다.");
 		    System.exit(0);
 		}
@@ -76,37 +84,73 @@ public class Main {
 			System.out.println("로그아웃 합니다.");
 			break;
 		case 0:
+			saveData();
 			System.out.println("프로그램을 종료합니다.");
 		    System.exit(0);
 		}
 	}
-
+	
+	// 비밀번호 검증
+	static boolean isValidPassword(String pw) {
+	    // 8자리 이상, 영문, 숫자, 특수문자 조합 패턴
+	    String regex = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&])[A-Za-z\\d@$!%*#?&]{8,}$";
+	    return pw.matches(regex);
+	}
+	// 아이디 검증
+	static boolean isValidId(String id) {
+	    // 영문 또는 숫자로 이루어진 6자 이상
+	    return id.matches("^[a-zA-Z0-9]{6,}$");
+	}
+	// 이름 검증
+	static boolean isValidName(String name) {
+	    // 한글 또는 영문만 허용 (숫자나 특수문자 포함 시 false)
+	    return name.matches("^[가-힣a-zA-Z\\s]+$");
+	}
+	
 	// 회원가입
 	static void join() {
 		System.out.println("\n--- [회원가입] ---");
+		
+		String id = "";
+	    String pw = "";
+	    String name = "";
 
-		System.out.print("아이디 입력: ");
-		String id = sc.next();
+		// [1관문] 아이디 입력 (형식 + 중복 체크)
+	    while (true) {
+	        System.out.print("아이디 입력(6자 이상): ");
+	        id = sc.next();
+	        if (isValidId(id)) {
+	            // 중복 체크
+	            boolean isDup = false;
+	            for (Member m : memberList) {
+	                if (m.getId().equals(id)) { isDup = true; break; }
+	            }
+	            if (!isDup) break; // 통과!
+	            else System.out.println("이미 존재하는 아이디입니다.");
+	        } else {
+	            System.out.println("[오류] 영문/숫자 조합 6자 이상이어야 합니다.");
+	        }
+	    }
 
-		// 1. 아이디 중복 체크
-		for (Member m : memberList) {
-			if (m.getId().equals(id)) {
-				System.out.println("이미 존재하는 아이디입니다. 처음으로 돌아갑니다.");
-				return;
-			}
-		}
+	    // [2관문] 비밀번호 입력 (조합 체크)
+	    while (true) {
+	        System.out.print("비밀번호 입력(8자 이상, 영문/숫자/특수문자): ");
+	        pw = sc.next();
+	        if (isValidPassword(pw)) break; // 통과!
+	        else System.out.println("[오류] 비밀번호 형식이 올바르지 않습니다.");
+	    }
 
-		System.out.print("비밀번호 입력: ");
-		String pw = sc.next();
+	    // [3관문] 이름 입력 (문자 체크)
+	    while (true) {
+	        System.out.print("이름 입력: ");
+	        name = sc.next();
+	        if (isValidName(name)) break; // 통과!
+	        else System.out.println("[오류] 이름에 숫자나 특수문자를 넣을 수 없습니다.");
+	    }
 
-		System.out.print("이름 입력: ");
-		String name = sc.next();
-
-		// 2. Member 객체 생성 및 리스트 추가
-		Member newMember = new Member(id, pw, name);
-		memberList.add(newMember);
-
-		System.out.println("회원가입이 완료되었습니다! 로그인 후 이용해주세요.");
+	    // [최종] 모든 관문 통과 후 가입 처리
+	    memberList.add(new Member(id, pw, name));
+	    System.out.println("\n" + name + "님, 회원가입이 완료되었습니다!");
 	}
 
 	// 로그인
@@ -173,7 +217,7 @@ public class Main {
 				System.out.printf("%d | %s | %s\n", b.getNo(), b.getTitle(), b.getWriterId());
 			}
 			
-			System.out.print("\n상세보기 할 글 번호(목록보기는 0): ");
+			System.out.print("\n상세보기 글 번호(메인메뉴로 돌아가기 0): ");
 			int targetNo = sc.nextInt();
 			
 			if (targetNo == 0) {
@@ -243,5 +287,58 @@ public class Main {
 	static void deletePost(Board b) {
 	    boardList.remove(b); // 리스트에서 해당 객체 삭제
 	    System.out.println("글이 삭제되었습니다.");
+	}
+	
+	// 파일저장(DB임시) - FILE I/O 방식
+	// 파일저장
+	static void saveData() {
+		
+		// 1. 멤버 저장 (데이터가 있을 때만)
+	    if (!memberList.isEmpty()) {
+	        try (ObjectOutputStream outMember = new ObjectOutputStream(new FileOutputStream("members.dat"))) {
+	            outMember.writeObject(memberList);
+	            System.out.println("[시스템] 회원 데이터 저장 완료.");
+	        } catch (IOException e) {
+	            System.out.println("[오류] 회원 저장 실패: " + e.getMessage());
+	        }
+	    }
+
+	    // 2. 게시글 저장 (데이터가 있을 때만)
+	    if (!boardList.isEmpty()) {
+	        try (ObjectOutputStream outBoard = new ObjectOutputStream(new FileOutputStream("boards.dat"))) {
+	            outBoard.writeObject(boardList);
+	            System.out.println("[시스템] 게시글 데이터 저장 완료.");
+	        } catch (IOException e) {
+	            System.out.println("[오류] 게시글 저장 실패: " + e.getMessage());
+	        }
+	    }
+	    
+	}
+
+	// 파일불러오기
+	static void loadData() {
+		// 멤버 파일이 있으면 불러오기
+	    File mFile = new File("members.dat");
+	    if (mFile.exists()) {
+	        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(mFile))) {
+	            memberList = (ArrayList<Member>) in.readObject();
+	        } catch (Exception e) {
+	            System.out.println("[오류] 회원 불러오기 실패");
+	        }
+	    }
+
+	    // 게시글 파일이 있으면 불러오기
+	    File bFile = new File("boards.dat");
+	    if (bFile.exists()) {
+	        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(bFile))) {
+	            boardList = (ArrayList<Board>) in.readObject();
+	            // 글 번호 동기화
+	            if (!boardList.isEmpty()) {
+	                boardCount = boardList.get(boardList.size() - 1).getNo() + 1;
+	            }
+	        } catch (Exception e) {
+	            System.out.println("[오류] 게시글 불러오기 실패");
+	        }
+	    }
 	}
 }

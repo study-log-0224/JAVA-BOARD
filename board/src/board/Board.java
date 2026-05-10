@@ -1,6 +1,8 @@
 package board;
 
-public class Board {
+import java.io.Serializable;
+
+public class Board implements Serializable {
     private int no;          // 글 번호
     private String title;    // 제목
     private String content;  // 내용
